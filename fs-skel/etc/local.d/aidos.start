@@ -1,0 +1,8 @@
+#!/bin/sh
+
+# Start AIDOS services
+/opt/aidos/node_server/node_server &
+/opt/aidos/controller/controller &
+/opt/aidos/api_server/api_server &
+
+echo "AIDOS services started."

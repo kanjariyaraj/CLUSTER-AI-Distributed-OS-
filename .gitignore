@@ -1,0 +1,20 @@
+# Build artifacts
+out/
+temp_rootfs/
+*.tar.gz
+
+# Binaries
+aidos_api/api_server
+aidos_api/node_server
+aidos_api/controller
+
+# Llama.cpp build artifacts
+llama.cpp_src/build/
+llama.cpp_src/build_alpine/
+llama.cpp_src/build_static/
+llama.cpp_src/bin/
+
+# Temporary files
+*.log
+*.tmp
+.DS_Store
