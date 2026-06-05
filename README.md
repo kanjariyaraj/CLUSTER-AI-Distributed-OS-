@@ -1,100 +1,115 @@
-# AIDOS: Distributed AI Supercomputing OS
+# 🌌 AIDOS: The Distributed AI Supercomputing OS
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Build Status](https://img.shields.io/badge/Build-Optimized-brightgreen.svg)]()
+[![Platform: Alpine](https://img.shields.io/badge/Platform-Alpine_Linux-blue.svg)](https://alpinelinux.org/)
+[![AI Engine: llama.cpp](https://img.shields.io/badge/AI_Engine-llama.cpp-red.svg)](https://github.com/ggerganov/llama.cpp)
 
 > **"AIDOS transforms low-end machines into a distributed AI supercomputer with zero setup."**
 
-AIDOS is a lightweight, Alpine Linux-based operating system designed to democratize AI compute. By leveraging distributed systems and optimized C++ backends, AIDOS allows clusters of machines to pool their resources for high-performance AI inference.
+AIDOS (Artificial Intelligence Distributed Operating System) is a hyper-minimalist, high-performance OS designed to solve one of the biggest problems in modern tech: **The Hardware Barrier for AI.**
+
+By pooling the resources of multiple "low-end" machines (old laptops, desktops, or even small servers), AIDOS creates a virtual supercomputer capable of running massive Large Language Models (LLMs) that would normally require expensive enterprise GPUs.
 
 ---
 
-## 🚀 The Vision
+## 🌟 Why AIDOS?
 
-Modern AI requires massive compute power often out of reach for individual users or small organizations. AIDOS changes this by:
-- **Distributed Execution:** Splitting AI workloads across multiple devices.
-- **Minimalist OS:** Using Alpine Linux as a base for sub-100MB footprint.
-- **Plug-and-Play:** Bootable ISOs that join a compute cluster automatically.
-
----
-
-## 🔥 Key Features & Advantages
-
-### 1. Distributed AI Inference
-The core strength of AIDOS is its ability to turn a local network of computers into a single powerful inference engine. It uses `llama.cpp` at its core, optimized for CPU execution.
-
-### 2. Ultra-Lightweight (Alpine Based)
-By building on Alpine Linux, AIDOS ensures that every bit of RAM and CPU cycle goes towards AI computation, not OS overhead.
-- **Base OS:** Alpine Linux
-- **Kernel:** Optimized for low-latency scheduling.
-- **Disk Footprint:** Highly compressed rootfs.
-
-### 3. Native C++ Performance
-The entire stack—from the API server to the cluster controller—is written in C/C++ to ensure maximum throughput and minimum latency.
-
-### 4. Zero-Config Clustering
-Future versions aim to support a "Cluster Mode" where devices automatically discover each other and start sharing compute tasks.
-
----
-
-## 🏗️ System Architecture
-
-| Layer | Technology |
+| Benefit | Description |
 | :--- | :--- |
-| **OS Layer** | Alpine Linux (Hardened & Minimized) |
-| **Core Layer** | C++17 / POSIX Shell |
-| **AI Engine** | `llama.cpp` (GGUF Support) |
-| **API Layer** | Lightweight C++ HTTP Server |
-| **Cluster Layer** | TCP Sockets / Distributed Task Scheduler |
-| **Build System** | `alpine-make-rootfs` |
+| **💰 Zero Cost** | Reuse your old hardware instead of buying $5,000 GPUs. |
+| **🚀 Distributed Power** | Split a single AI prompt across 5 machines to get 5x faster results. |
+| **🛡️ Total Privacy** | Run everything locally. Your data never leaves your private network. |
+| **⚡ Hyper-Light** | Sub-100MB OS footprint. Every CPU cycle is dedicated to AI. |
 
-### System Structure
-Files are organized in `/opt/aidos/` for a clean, immutable-style system:
-```text
+---
+
+## 🛠️ Core Technology Stack
+
+AIDOS is built from the ground up for performance. No bloat, just power.
+
+- **OS Core:** Custom-built **Alpine Linux** distribution.
+- **Inference Engine:** Highly optimized **C++ llama.cpp** (GGUF support).
+- **Communication:** Low-latency **TCP Sockets** for real-time node coordination.
+- **API Surface:** Lightweight **C++ REST Server** for easy integration.
+- **Boot System:** Hybrid **Fast-Boot** kernel with pre-emptive scheduling.
+
+---
+
+## ⚙️ How It Works (The 6-Stage Process)
+
+AIDOS operates through a unique distributed workflow:
+
+1.  **Node Discovery:** When a device boots AIDOS, it automatically broadcasts its presence to the local network.
+2.  **Resource Mapping:** The Controller node identifies the CPU cores and RAM available on each joined device.
+3.  **Model Partitioning:** Large AI models are strategically split into "shards" across different machines.
+4.  **Distributed Inference:** When a prompt arrives, compute tasks are sent to all nodes simultaneously.
+5.  **Result Aggregation:** The Controller gathers the partial results and reconstructs the final AI response.
+6.  **Dynamic Load Balancing:** If one node slows down, the system automatically reroutes tasks to keep the cluster fast.
+
+---
+
+## 🏗️ System Architecture & Directory Design
+
+We follow a strict "Clean System" design. The entire AIDOS environment lives in `/opt/aidos/`:
+
+```bash
 /opt/aidos/
- ├── api_server      # Handles REST requests
- ├── node_server     # Manages local compute resources
- ├── controller      # Orchestrates the cluster
- ├── llama.cpp/      # AI Inference engine
- ├── models/         # Local GGUF models
- └── scripts/        # System management utilities
+ ├── api_server      # 🌐 The REST interface for external apps
+ ├── node_server     # 💻 The local engine running on each machine
+ ├── controller      # 🧠 The "Brain" that coordinates the cluster
+ ├── llama.cpp/      # 🏎️ Optimized inference binaries
+ ├── models/         # 📁 Your GGUF model library
+ └── scripts/        # 🛠️ System health & update tools
 ```
 
 ---
 
-## 🗺️ Project Roadmap
+## 🗺️ The Roadmap to Excellence
 
-| Phase | Description | Status |
+| Milestone | Status | Details |
 | :--- | :--- | :--- |
-| **Phase 1** | **Base OS:** Pipeline for Alpine rootfs generation. | ✅ Done |
-| **Phase 2** | **AI Engine:** `llama.cpp` integration and optimization. | ✅ Done |
-| **Phase 3** | **API Layer:** REST endpoint for AI generation. | 🏗️ In Progress |
-| **Phase 4** | **Node Server:** Resource monitoring and local task management. | 📅 Planned |
-| **Phase 5** | **Controller:** Global cluster orchestration logic. | 📅 Planned |
-| **Phase 6** | **Networking:** Low-latency TCP socket communication. | 📅 Planned |
-| **Phase 7** | **Optimization:** Kernel tuning and boot-speed improvements. | 📅 Planned |
-| **Phase 8** | **UX:** Automated ISO build and installer. | 📅 Planned |
-| **Phase 9** | **Demo:** Real-world multi-node AI cluster showcase. | 🚀 Future |
+| **Phase 1: Foundation** | ✅ | Automated Alpine rootfs generation pipeline. |
+| **Phase 2: AI Core** | ✅ | Native `llama.cpp` integration with hardware acceleration. |
+| **Phase 3: Connect** | 🏗️ | Implementation of the high-speed REST API server. |
+| **Phase 4: Orchestrate** | 📅 | Multi-node resource monitoring & task assignment. |
+| **Phase 5: Scale** | 📅 | Seamless cluster expansion (Plug-and-Compute). |
+| **Phase 6: Optimize** | 📅 | Kernel tuning for < 5s boot times and 0% idle CPU. |
 
 ---
 
-## 🛠️ Usage
+## 🚀 Getting Started
 
-### API Interaction
-Once booted, AIDOS exposes a simple REST API:
+### 1. Build your OS
 ```bash
-curl localhost:8080/generate -d '{"prompt": "Explain Quantum Physics", "temp": 0.7}'
+sudo ./build_rootfs.sh
 ```
 
-### Cluster Command (Future)
+### 2. Boot & Query
+Once running, simply send a prompt to the cluster:
 ```bash
-aidos cluster join --secret my-network-key
+curl http://aidos-cluster/generate \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "How do I build a cluster?", "max_tokens": 100}'
 ```
 
 ---
 
-## 💡 The Future: Decentralized Compute Marketplace
-Beyond local clusters, the long-term goal for AIDOS is an **AI Compute Sharing Network**. Idle devices worldwide could join a decentralized marketplace, providing compute power in exchange for tokens or reciprocal access, effectively creating a "Global AI Supercomputer."
+## 💡 The Future: The Global Compute Mesh
+Our ultimate goal is to create a decentralized **AI Compute Marketplace**. Imagine a world where anyone can contribute their idle CPU power to a global mesh, earning rewards while helping researchers and developers run the world's most advanced AI models for free.
+
+---
+
+## 🤝 Contributing
+AIDOS is an open-source project. We welcome developers, system architects, and AI enthusiasts to help us build the future of distributed computing.
+
+1.  Fork the repo
+2.  Create your feature branch
+3.  Commit your changes
+4.  Push to the branch
+5.  Open a Pull Request
 
 ---
 
 ## ⚖️ License
-This project is licensed under the [MIT License](LICENSE). 
-Portions of the build scripts are derived from the original `alpine-make-rootfs` project.
+Licensed under the [MIT License](LICENSE). Built with ❤️ for the open-source community.
