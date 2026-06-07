@@ -26,8 +26,20 @@ cd /opt/aidos/llama.cpp/
 ## 🌐 4. Testing the Distributed API
 The system starts three services on boot:
 * **API Server (8080):** Entry point for users.
-* **Controller (8082):** Workload balancer.
-* **Node Server (8081):** Compute worker.
+* **Controller (8082):** Dynamic workload balancer.
+* **Node Server (8081):** Compute worker (sends UDP heartbeats).
+
+### 🔍 Phase 7: Verification (Auto-Discovery)
+1. **List Nodes:**
+   ```bash
+   curl localhost:8082/nodes
+   ```
+2. **Watch for Auto-Join:**
+   * Boot a second VM.
+   * Run the command above on VM-1. You will see VM-2 appear automatically in the list.
+3. **Test Load Balancing:**
+   * Send multiple requests to `localhost:8080/generate`.
+   * The Controller will distribute tasks to any node that has announced itself.
 
 **Test command:**
 ```bash

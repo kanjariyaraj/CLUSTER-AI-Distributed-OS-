@@ -14,12 +14,18 @@ The system consists of four primary layers:
 
 ### Core Components:
 *   **API Server (Port 8080):** Handles user requests (`/generate`).
-*   **Controller (Port 8082):** Tracks available nodes and distributes prompts.
-*   **Node Server (Port 8081):** Listens for tasks and triggers the AI engine.
+*   **Controller (Port 8082):** Tracks available nodes via UDP discovery and distributes prompts.
+*   **Node Server (Port 8081):** Listens for tasks and triggers the AI engine. Broadcasts UDP heartbeats for discovery.
 
 ---
 
 ## 3. How the ISO was Created (Step-by-Step)
+...
+### Step 5: Real-Time Cluster Discovery (Phase 7)
+We implemented a zero-config networking layer:
+*   **UDP Heartbeats:** Each node sends a JSON packet every 5 seconds to port 8888.
+*   **Dynamic Registry:** The Controller maintains a live map of nodes. If a node fails to send a heartbeat for 15 seconds, it is automatically removed from the cluster.
+*   **Discovery API:** A new endpoint `GET /nodes` allows users to see the real-time cluster state.
 
 ### Step 1: Base Rootfs Generation
 Using the `alpine-make-rootfs` script, a base Alpine Linux environment was created. 
