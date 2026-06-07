@@ -5,4 +5,7 @@
 /opt/aidos/controller/controller &
 /opt/aidos/api_server/api_server &
 
+# Start llama.cpp RPC server for tensor splitting (Phase 8)
+/opt/aidos/llama.cpp/rpc-server -p 50052 &
+
 echo "AIDOS services started."

@@ -4,7 +4,7 @@
 Enable AIDOS to run large AI models (e.g., 70B parameters) that exceed the RAM of a single node by splitting the workload at the tensor level.
 
 ## Tasks
-- [ ] **Task 8.1: RPC Backend Integration**
+- [x] **Task 8.1: RPC Backend Integration**
   - Integrate `llama.cpp`'s RPC (Remote Procedure Call) backend into the AIDOS layer.
 - [ ] **Task 8.2: Memory Management**
   - Implement a check to determine total available cluster RAM.

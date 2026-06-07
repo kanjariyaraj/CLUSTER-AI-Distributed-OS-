@@ -16,11 +16,17 @@ The system consists of four primary layers:
 *   **API Server (Port 8080):** Handles user requests (`/generate`).
 *   **Controller (Port 8082):** Tracks available nodes via UDP discovery and distributes prompts.
 *   **Node Server (Port 8081):** Listens for tasks and triggers the AI engine. Broadcasts UDP heartbeats for discovery.
+*   **RPC Server (Port 50052):** Remote compute backend for tensor-level distribution (Phase 8).
 
 ---
 
 ## 3. How the ISO was Created (Step-by-Step)
 ...
+### Step 6: Advanced Distributed Inference (Phase 8)
+We integrated `llama.cpp`'s RPC backend:
+*   **RPC Server:** Every node now runs an `rpc-server` by default.
+*   **Tensor Splitting:** When running a model, AIDOS can now pool the RAM of multiple nodes. For example, a 70B model can be split across four 16GB nodes.
+*   **Static Linking:** The `rpc-server` is statically linked to ensure it runs on the minimal Alpine base without extra libraries.
 ### Step 5: Real-Time Cluster Discovery (Phase 7)
 We implemented a zero-config networking layer:
 *   **UDP Heartbeats:** Each node sends a JSON packet every 5 seconds to port 8888.
