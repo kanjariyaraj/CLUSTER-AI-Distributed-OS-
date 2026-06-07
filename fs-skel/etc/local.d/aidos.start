@@ -1,6 +1,7 @@
 #!/bin/sh
 
 # Start AIDOS services
+/opt/aidos/marketplace/marketplace &
 /opt/aidos/node_server/node_server &
 /opt/aidos/controller/controller &
 /opt/aidos/api_server/api_server &

@@ -16,12 +16,18 @@ The system consists of four primary layers:
 *   **API Server (Port 8080):** Handles user requests (`/generate`).
 *   **Controller (Port 8082):** Tracks available nodes via UDP discovery and distributes prompts.
 *   **Node Server (Port 8081):** Listens for tasks and triggers the AI engine. Broadcasts UDP heartbeats for discovery.
+*   **Marketplace (Port 8083):** Real-time dashboard and compute credit ledger (Phase 9).
 *   **RPC Server (Port 50052):** Remote compute backend for tensor-level distribution (Phase 8).
 
 ---
 
 ## 3. How the ISO was Created (Step-by-Step)
 ...
+### Step 7: AI Compute Marketplace (Phase 9)
+We added an incentive and monitoring layer:
+*   **Ledger System:** A new service `marketplace` tracks every task completed by nodes.
+*   **Credit Earning:** Nodes earn "AIDOS Credits" for contributing compute power, recorded in a central ledger.
+*   **Web Dashboard:** A built-in dark-themed web UI allows users to see cluster health and node earnings at a glance.
 ### Step 6: Advanced Distributed Inference (Phase 8)
 We integrated `llama.cpp`'s RPC backend:
 *   **RPC Server:** Every node now runs an `rpc-server` by default.

@@ -120,6 +120,15 @@ int main() {
         auto node_res = cli.Post("/compute", body.dump(), "application/json");
         
         if (node_res) {
+            // Report work to marketplace (Phase 9)
+            json report;
+            report["node_id"] = target_node;
+            report["units"] = 1.0; // 1 credit per task
+            report["load"] = 0.8;  // Mock load
+            
+            Client marketplace("localhost:8083");
+            marketplace.Post("/report_work", report.dump(), "application/json");
+
             res.set_content(node_res->body, "application/json");
         } else {
             res.status = 500;

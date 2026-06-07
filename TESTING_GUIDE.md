@@ -28,6 +28,17 @@ The system starts three services on boot:
 * **API Server (8080):** Entry point for users.
 * **Controller (8082):** Dynamic workload balancer.
 * **Node Server (8081):** Compute worker (sends UDP heartbeats).
+* **Marketplace (8083):** Ledger and Dashboard (Phase 9).
+
+### 🔍 Phase 9: Verification (Compute Marketplace)
+1. **Open Dashboard:**
+   * Open your browser and navigate to `http://<VM_IP>:8083/`.
+   * You will see the "AIDOS AI Marketplace" dashboard.
+2. **Earn Credits:**
+   * Run several inference requests via the API (Port 8080).
+   * Refresh the dashboard; you will see the "Total Credits Earned" for your node increase in real-time.
+3. **Verify Load:**
+   * The dashboard also tracks the real-time load of each node in the cluster.
 
 ### 🔍 Phase 7: Verification (Auto-Discovery)
 1. **List Nodes:**
