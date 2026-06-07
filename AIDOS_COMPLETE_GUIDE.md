@@ -18,11 +18,16 @@ The system consists of four primary layers:
 *   **Node Server (Port 8081):** Listens for tasks and triggers the AI engine. Broadcasts UDP heartbeats for discovery.
 *   **Marketplace (Port 8083):** Real-time dashboard and compute credit ledger (Phase 9).
 *   **RPC Server (Port 50052):** Remote compute backend for tensor-level distribution (Phase 8).
+*   **ARM64 Support:** Fully cross-compiled binaries for Raspberry Pi and Mobile Edge nodes (Phase 10).
 
 ---
 
 ## 3. How the ISO was Created (Step-by-Step)
 ...
+### Step 8: ARM64 & Edge Integration (Phase 10)
+We expanded the AIDOS ecosystem to support ARM architecture:
+*   **Cross-Compilation:** Used a specialized Docker builder (`arm64.Dockerfile`) to create static `aarch64` binaries on an `x86_64` host.
+*   **Heterogeneous Cluster:** The Controller can now manage a mixed cluster of powerful x86 servers and energy-efficient ARM edge nodes.
 ### Step 7: AI Compute Marketplace (Phase 9)
 We added an incentive and monitoring layer:
 *   **Ledger System:** A new service `marketplace` tracks every task completed by nodes.
