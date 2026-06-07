@@ -4,138 +4,143 @@
 [![Build Status](https://img.shields.io/badge/Build-Optimized-brightgreen.svg)]()
 [![Platform: Alpine](https://img.shields.io/badge/Platform-Alpine_Linux-blue.svg)](https://alpinelinux.org/)
 [![AI Engine: llama.cpp](https://img.shields.io/badge/AI_Engine-llama.cpp-red.svg)](https://github.com/ggerganov/llama.cpp)
-[![Stability: Alpha](https://img.shields.io/badge/Stability-Alpha-orange.svg)]()
-[![Contributions: Welcome](https://img.shields.io/badge/Contributions-Welcome-brightgreen.svg)]()
+[![Arch: x86_64/ARM64](https://img.shields.io/badge/Arch-x86__64%20%7C%20ARM64-blueviolet.svg)]()
+[![Stability: Prototype](https://img.shields.io/badge/Stability-Prototype-orange.svg)]()
 
 > **"AIDOS transforms low-end machines into a distributed AI supercomputer with zero setup."**
 
----
-
-## 🗺️ Project Overview
-
-AIDOS (Artificial Intelligence Distributed Operating System) is a hyper-minimalist, high-performance OS designed to solve the **Hardware Barrier for AI.** By pooling the resources of multiple "low-end" machines (old laptops, desktops, or small servers), AIDOS creates a virtual supercomputer capable of running massive Large Language Models (LLMs) that would normally require expensive enterprise GPUs.
+AIDOS (Artificial Intelligence Distributed Operating System) is a hyper-minimalist, high-performance Linux distribution based on Alpine Linux. It is designed to solve the **Hardware Barrier for AI** by pooling the collective CPU and RAM of multiple "low-end" machines (old laptops, Raspberry Pis, old Android phones) into a single virtual supercomputer.
 
 ---
 
-## 🏗️ Visual Architecture Diagram
+## 🏗️ System Architecture (Deep Dive)
+
+AIDOS operates on a **Controller-Node** architecture with a zero-config discovery layer.
+
+### 1. The Gateway Layer (API Server)
+*   **Purpose:** The entry point for all user requests.
+*   **Tech:** C++17, `cpp-httplib`, `nlohmann/json`.
+*   **Port:** 8080
+*   **Function:** Receives standard JSON prompts and forwards them to the Cluster Controller.
+
+### 2. The Orchestration Layer (Controller)
+*   **Purpose:** The "Brain" of the cluster.
+*   **Port:** 8082
+*   **Features:**
+    *   **UDP Discovery:** Automatically detects new nodes on the network via port 8888.
+    *   **Health Monitoring:** Tracks node load and removes timed-out nodes.
+    *   **Load Balancing:** Distributes tasks to the least-busy nodes.
+    *   **Marketplace Reporting:** Logs work completion to the ledger.
+
+### 3. The Compute Layer (Node Server & RPC)
+*   **Purpose:** Where the actual AI inference happens.
+*   **Ports:** 8081 (Task API), 50052 (llama.cpp RPC).
+*   **Features:**
+    *   **Static AI Engine:** Uses a custom-built, statically linked `llama.cpp`.
+    *   **Heartbeat Thread:** Broadcasts UDP packets every 5 seconds for auto-discovery.
+    *   **Tensor Splitting:** Uses RPC backends to pool RAM across multiple physical machines.
+
+### 4. The Incentive Layer (Marketplace)
+*   **Purpose:** Monetizing idle compute power.
+*   **Port:** 8083
+*   **Features:**
+    *   **Ledger System:** Tracks "AIDOS Credits" earned by each node ID.
+    *   **Web Dashboard:** A dark-themed real-time UI to monitor cluster power and individual earnings.
+
+---
+
+## 🚀 The 10-Phase Development Lifecycle
+
+AIDOS was built through a systematic 10-stage engineering process:
+
+| Phase | Milestone | Core Innovation | Status |
+| :--- | :--- | :--- | :--- |
+| **1** | **Foundation** | Automated Alpine rootfs generation with `fakeroot`. | ✅ |
+| **2** | **AI Core** | Static `llama.cpp` compilation for Musl/Alpine. | ✅ |
+| **3** | **API Gateway** | C++ REST implementation for seamless model access. | ✅ |
+| **4** | **Mesh** | Basic Controller-Node communication protocol. | ✅ |
+| **5** | **Optimization** | Kernel tuning for low-latency and performance governor. | ✅ |
+| **6** | **ISO Build** | Packaging a bootable Live-OS for VirtualBox/Hardware. | ✅ |
+| **7** | **Discovery** | Zero-config networking with UDP Heartbeats. | ✅ |
+| **8** | **Inference+** | Tensor Splitting via llama.cpp RPC for huge models. | ✅ |
+| **9** | **Marketplace** | Real-time Credit Ledger and Web Dashboard. | ✅ |
+| **10** | **Edge** | ARM64 Cross-compilation for Raspberry Pi/Mobile nodes. | ✅ |
+
+---
+
+## 🛠️ Build & Compilation (Technical Details)
+
+AIDOS is designed for maximum portability. All binaries are **statically linked** against `musl` libc.
+
+### x86_64 Build (Standard)
+We use an Alpine Docker container to ensure binaries are compatible with the minimal target environment:
+```bash
+# Example Docker-based static build
+g++ -O3 -static aidos_api/api_server.cpp -lpthread -o out/api_server
+```
+
+### ARM64 Cross-Compilation (Edge)
+To support Raspberry Pis and Mobile devices, we use a specialized cross-compilation pipeline:
+*   **Toolchain:** `aarch64-linux-musl` inside Docker.
+*   **Output:** Static binaries that run on any `aarch64` Alpine install.
+
+---
+
+## 📂 Project Structure
 
 ```text
-      [ 🌐 External Request (User/App) ]
-                    |
-                    v
-      [ 📡 AIDOS API Gateway (Node 0) ]
-                    |
-      +-------------+-------------+
-      |             |             |
-[ 🧠 Node 1 ] [ 🧠 Node 2 ] [ 🧠 Node 3 ] ... [ 🧠 Node N ]
-(Shard A)      (Shard B)      (Shard C)        (Shard N)
-      |             |             |
-      +-------------+-------------+
-                    |
-      [ 🚀 Aggregated AI Response ]
+.
+├── aidos_api/          # Source code for API, Controller, Marketplace, Node
+├── fs-skel/            # Custom filesystem overlay (binaries, boot configs)
+├── llama.cpp_src/      # AI Engine source code
+├── out/                # Build artifacts (ISO, Rootfs Tarballs)
+├── phase1.md - 10.md   # Detailed logs of every development stage
+├── TESTING_GUIDE.md    # Step-by-step manual for cluster validation
+└── AIDOS_COMPLETE_GUIDE.md # Technical master manual
 ```
 
 ---
 
-## 💎 The 6 Key Advantages of AIDOS
+## 🚦 Getting Started
 
-| Advantage | AIDOS | Traditional AI |
-| :--- | :--- | :--- |
-| **💰 Cost** | **Zero** (Reuse old hardware) | **$5,000+** (Enterprise GPUs) |
-| **⚡ Footprint** | **< 100MB** (Alpine Linux) | **20GB+** (Ubuntu/Windows) |
-| **🚀 Scalability** | **Infinite** (Add more PCs) | **Limited** (PCIe Slots/VRAM) |
-| **🛡️ Privacy** | **100% Local** | **Risky** (Cloud API dependency) |
-| **🛠️ Maintenance** | **Plug-and-Play** | **Complex** (Driver/CUDA Hell) |
-| **🌐 Accessibility** | **Democratized** | **Elitist** (High barrier to entry) |
+### 1. Deployment (VirtualBox)
+1.  Download `out/aidos.iso`.
+2.  Create a VM with 2GB+ RAM (Type: Other Linux 64-bit).
+3.  Mount the ISO and Boot.
 
----
-
-## 🛠️ The 6 Core Technologies
-
-1.  **OS Foundation:** A hardened, custom-stripped **Alpine Linux** for minimal latency.
-2.  **Inference Engine:** Optimized **llama.cpp** with GGUF support for CPU-based AI.
-3.  **Communication:** Ultra-low-latency **TCP/IP Sockets** for inter-node messaging.
-4.  **API Gateway:** A high-performance **C++17 REST Server** (cpp-httplib).
-5.  **Cluster Logic:** Custom **Distributed Task Scheduler** written in native C++.
-6.  **Build Pipeline:** Integrated **Automated RootFS Generator** for reproducible builds.
-
----
-
-## ⚙️ The 6-Stage Distributed Workflow
-
-AIDOS orchestrates AI compute through a precise, 6-step lifecycle:
-
-1.  **Discovery Phase:** New nodes broadcast heartbeat signals via UDP to join the active cluster.
-2.  **Resource Audit:** The Controller node profiles every node's CPU architecture and available RAM.
-3.  **Dynamic Sharding:** AI models are partitioned into optimal shards based on individual node capacity.
-4.  **Parallel Execution:** Prompt tasks are distributed across the mesh for simultaneous processing.
-5.  **Packet Synthesis:** The Controller reassembles the fragmented token streams into a coherent response.
-6.  **Fault Tolerance:** If a node drops, the system instantly redistributes its shard to remaining nodes.
-
----
-
-## 📁 System Architecture (Internal Stack)
-
-The system is organized into 6 critical directories within `/opt/aidos/`:
-
+### 2. Usage
 ```bash
-/opt/aidos/
- ├── api_server      # 🌐 External REST interface (C++ Httplib)
- ├── node_server     # 💻 Local compute management (Process Monitor)
- ├── controller      # 🧠 Global cluster orchestration (Task Master)
- ├── llama.cpp/      # 🏎️ Native inference binaries (AVX2/AVX512/NEON)
- ├── models/         # 📁 GGUF Model repository (Quantized weights)
- └── scripts/        # 🛠️ System maintenance & boot-time health checks
+# 1. Download a model (inside the VM)
+/opt/aidos/scripts/manage_models.sh download
+
+# 2. Query the cluster API
+curl http://localhost:8080/generate -d "What is the capital of France?"
+
+# 3. View the Marketplace Dashboard
+# Navigate to http://<VM_IP>:8083 in your browser
 ```
 
 ---
 
-## 🗺️ The 6-Phase Roadmap to V1.0
-
-| Milestone | Status | Objective |
-| :--- | :--- | :--- |
-| **Phase 1: Foundation** | ✅ | Automated Alpine rootfs generation pipeline. |
-| **Phase 2: AI Core** | ✅ | Native `llama.cpp` integration with CPU optimizations. |
-| **Phase 3: Gateway** | 🏗️ | Implementation of the C++ REST API and JSON handler. |
-| **Phase 4: Mesh** | 📅 | Multi-node resource monitoring & task allocation. |
-| **Phase 5: Elasticity** | 📅 | Seamless, hot-plug cluster expansion and rebalancing. |
-| **Phase 6: Perfection** | 📅 | Kernel tuning for < 5s cold boot and peak optimization. |
+## 🔮 Future Roadmap (V2.0)
+*   **Encrypted Compute:** Using TEE (Trusted Execution Environments) to protect data on untrusted nodes.
+*   **Mobile App:** One-click "Join Cluster" button for Android/iOS devices.
+*   **Automatic Sharding:** Dynamic reallocation of model layers based on real-time network latency.
 
 ---
 
-## 🚀 Getting Started in 6 Minutes
+## ❓ FAQ
 
-1.  **Clone:**
-    ```bash
-    git clone https://github.com/kanjariyaraj/liunx-based-os-disatication-project-.git
-    ```
-2.  **Build:** Run the automated build script:
-    ```bash
-    sudo ./build_rootfs.sh
-    ```
-3.  **Deploy:** Flash the generated `rootfs.tar.gz` to a bootable medium.
-4.  **Join:** Connect multiple machines to the same LAN; they will auto-pair.
-5.  **Query:** Send your first AI prompt via the REST API:
-    ```bash
-    curl http://localhost:8080/generate -d '{"prompt": "Hello AIDOS!"}'
-    ```
-6.  **Scale:** Add more nodes on-the-fly to increase context size and speed.
+**Q: Does it support NVIDIA GPUs?**
+A: Current version is CPU-only, optimized for AVX2/AVX512. GPU support is planned for Phase 11.
 
----
+**Q: Can I run this on my old Raspberry Pi?**
+A: Yes! Use the ARM64 binaries and follow the guide in `phase10.md`.
 
-## ❓ Frequently Asked Questions (FAQ)
-
-**Q: Can I use machines with different CPU architectures?**
-A: Yes! AIDOS is designed to be heterogeneous. It will automatically detect the capabilities (AVX2, AVX512, etc.) of each node.
-
-**Q: What models are supported?**
-A: Any model in GGUF format is supported, including Llama 3, Mistral, Gemma, and more.
-
-**Q: Is a GPU required?**
-A: No. AIDOS is specifically optimized for high-performance **CPU-only** distributed inference.
+**Q: Is it really zero-config?**
+A: Yes. As long as machines are on the same local network (subnet), the UDP Discovery (Phase 7) will automatically form the cluster.
 
 ---
 
 ## ⚖️ License
-Licensed under the [MIT License](LICENSE). Built with ❤️ for the future of open-source AI.
-/cha/cha
+Licensed under the [MIT License](LICENSE). Built for the democratization of AI.
