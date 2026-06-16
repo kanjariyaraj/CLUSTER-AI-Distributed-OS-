@@ -1,0 +1,15 @@
+Section "Device"
+    Identifier  "virtio-gpu"
+    Driver      "modesetting"
+    Option      "kmsdev"    "/dev/dri/card0"
+    Option      "SWCursor"  "true"
+EndSection
+Section "Screen"
+    Identifier  "DefaultScreen"
+    Device      "virtio-gpu"
+    DefaultDepth 24
+EndSection
+Section "ServerLayout"
+    Identifier  "DefaultLayout"
+    Screen      "DefaultScreen"
+EndSection

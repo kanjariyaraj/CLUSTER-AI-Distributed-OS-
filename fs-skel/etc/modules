@@ -1,0 +1,3 @@
+# AIDOS kernel modules to load at boot
+e1000
+virtio_net

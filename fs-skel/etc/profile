@@ -1,0 +1,3 @@
+
+# AIDOS scripts
+export PATH="$PATH:/opt/aidos/scripts"

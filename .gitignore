@@ -2,17 +2,27 @@
 out/
 temp_rootfs/
 *.tar.gz
+nohup.out
 
 # Binaries
 aidos_api/api_server
 aidos_api/node_server
 aidos_api/controller
+aidos_api/marketplace
 
 # Llama.cpp build artifacts
 llama.cpp_src/build/
 llama.cpp_src/build_alpine/
 llama.cpp_src/build_static/
 llama.cpp_src/bin/
+
+# OS build artifacts
+iso_build/
+apk.static
+
+# Documentation
+*.md
+!README.md
 
 # Temporary files
 *.log

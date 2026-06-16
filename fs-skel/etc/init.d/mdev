@@ -1,0 +1,32 @@
+#!/sbin/openrc-run
+
+description="Manage /dev with mdev"
+
+depend()
+{
+	after devfs
+	provide device-mgr
+	keyword -docker -prefix -systemd-nspawn -vserver
+}
+
+start()
+{
+	depmod -a 2>/dev/null || true
+	ebegin "Populating /dev with mdev"
+	echo /sbin/mdev >/proc/sys/kernel/hotplug 2>/dev/null
+	mdev -s
+	eend $?
+	# Fix critical device permissions for Xorg
+	chmod 0666 /dev/null /dev/zero /dev/random /dev/urandom 2>/dev/null
+	chmod 0666 /dev/tty[0-9] 2>/dev/null
+	chmod 0666 /dev/dri/* 2>/dev/null
+	return 0
+}
+
+stop()
+{
+	ebegin "Stopping mdev hotplug"
+	# Don't clear hotplug, just unregister
+	eend 0
+	return 0
+}

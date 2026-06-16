@@ -1,0 +1,1 @@
+/opt/aidos/scripts/start-desktop.sh

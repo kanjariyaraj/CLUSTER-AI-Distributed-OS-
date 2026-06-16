@@ -1,12 +1,39 @@
 #!/bin/sh
 
-# Start AIDOS services
+# Load input modules for PS/2 keyboard/mouse support
+modprobe psmouse 2>/dev/null || true
+modprobe mousedev 2>/dev/null || true
+modprobe evdev 2>/dev/null || true
+modprobe virtio_input 2>/dev/null || true
+modprobe serio 2>/dev/null || true
+
+# glibc runtime path for binaries that need it
+GLIBC_LD="/opt/aidos/glibc/lib/ld-linux-x86-64.so.2"
+GLIBC_LIB="/opt/aidos/glibc/lib:/opt/aidos/ollama/lib"
+
+# Start AIDOS services (musl static, no glibc needed)
 /opt/aidos/marketplace/marketplace &
 /opt/aidos/node_server/node_server &
 /opt/aidos/controller/controller &
 /opt/aidos/api_server/api_server &
 
-# Start llama.cpp RPC server for tensor splitting (Phase 8)
-/opt/aidos/llama.cpp/rpc-server -p 50052 &
+# Start Ollama server (glibc binary)
+$GLIBC_LD --library-path $GLIBC_LIB /opt/aidos/ollama/bin/ollama serve &
+
+# Start llama.cpp RPC server for tensor splitting (glibc binary)
+# Retry loop: glibc may crash during early boot (timing issue with __strlen_evex)
+for i in 1 2 3; do
+    sleep $((i * 2))
+    $GLIBC_LD --library-path $GLIBC_LIB /opt/aidos/llama.cpp/rpc-server --host 0.0.0.0 -p 50052 &
+    RPCPID=$!
+    sleep 1
+    if kill -0 $RPCPID 2>/dev/null; then
+        break
+    fi
+    wait $RPCPID 2>/dev/null
+done
+
+echo "Starting desktop environment..."
+su - aidos -c '/opt/aidos/scripts/start-desktop.sh' &
 
 echo "AIDOS services started."

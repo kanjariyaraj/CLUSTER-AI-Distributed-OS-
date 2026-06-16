@@ -8,7 +8,11 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <netinet/tcp.h>
 #include <unistd.h>
+#include <algorithm>
+#include <numeric>
+#include <sstream>
 #include "../llama.cpp_src/vendor/cpp-httplib/httplib.h"
 #include "../llama.cpp_src/vendor/nlohmann/json.hpp"
 
@@ -20,12 +24,45 @@ const int DISCOVERY_PORT = 8888;
 struct NodeInfo {
     std::string address;
     int port;
+    int rpc_port;
     double load;
+    double memory_total_gb;
+    double memory_avail_gb;
     std::chrono::steady_clock::time_point last_seen;
 };
 
 std::map<std::string, NodeInfo> cluster_nodes;
 std::mutex nodes_mutex;
+
+std::map<std::string, std::unique_ptr<Client>> node_clients;
+std::mutex clients_mutex;
+
+Client* get_node_client(const std::string& host, int port) {
+    std::string key = host + ":" + std::to_string(port);
+    std::lock_guard<std::mutex> lock(clients_mutex);
+    auto it = node_clients.find(key);
+    if (it != node_clients.end()) {
+        return it->second.get();
+    }
+    auto cli = std::make_unique<Client>(host, port);
+    cli->set_tcp_nodelay(true);
+    cli->set_keep_alive(true);
+    cli->set_compress(true);
+    cli->set_read_timeout(300, 0);
+    cli->set_write_timeout(60, 0);
+    cli->set_connection_timeout(10);
+    Client* ptr = cli.get();
+    node_clients[key] = std::move(cli);
+    return ptr;
+}
+
+Client* get_marketplace_client() {
+    static Client cli("localhost", 8083);
+    cli.set_tcp_nodelay(true);
+    cli.set_keep_alive(true);
+    cli.set_compress(true);
+    return &cli;
+}
 
 void start_discovery() {
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -54,8 +91,15 @@ void start_discovery() {
                     std::string key = ip + ":" + std::to_string(port);
 
                     std::lock_guard<std::mutex> lock(nodes_mutex);
-                    cluster_nodes[key] = {ip, port, hb["load"], std::chrono::steady_clock::now()};
-                    // Use a more quiet log for discovered nodes to avoid spamming
+                    cluster_nodes[key] = {
+                        ip,
+                        port,
+                        hb.value("rpc_port", 50052),
+                        hb["load"],
+                        hb.value("memory_total_gb", 0.0),
+                        hb.value("memory_avail_gb", 0.0),
+                        std::chrono::steady_clock::now()
+                    };
                 }
             } catch (...) {}
         }
@@ -79,6 +123,49 @@ void start_node_cleanup() {
     }
 }
 
+std::vector<std::pair<std::string, NodeInfo>> select_nodes_for_model(double model_size_gb) {
+    std::lock_guard<std::mutex> lock(nodes_mutex);
+
+    std::vector<std::pair<std::string, NodeInfo>> candidates;
+    for (auto const& [key, info] : cluster_nodes) {
+        candidates.push_back({key, info});
+    }
+
+    std::sort(candidates.begin(), candidates.end(),
+        [](auto const& a, auto const& b) {
+            return a.second.memory_avail_gb > b.second.memory_avail_gb;
+        });
+
+    std::vector<std::pair<std::string, NodeInfo>> selected;
+    double total_selected_memory = 0;
+
+    for (auto const& candidate : candidates) {
+        selected.push_back(candidate);
+        total_selected_memory += candidate.second.memory_avail_gb;
+        if (total_selected_memory >= model_size_gb) {
+            break;
+        }
+    }
+
+    if (total_selected_memory >= model_size_gb) {
+        return selected;
+    }
+
+    return {};
+}
+
+json serialize_node(const std::string& key, const NodeInfo& info) {
+    json n;
+    n["id"] = key;
+    n["address"] = info.address;
+    n["port"] = info.port;
+    n["rpc_port"] = info.rpc_port;
+    n["load"] = info.load;
+    n["memory_total_gb"] = info.memory_total_gb;
+    n["memory_avail_gb"] = info.memory_avail_gb;
+    return n;
+}
+
 int main() {
     std::thread disc_thread(start_discovery);
     disc_thread.detach();
@@ -87,23 +174,134 @@ int main() {
     clean_thread.detach();
 
     Server svr;
+    svr.set_tcp_nodelay(true);
+    svr.set_keep_alive_max_count(100);
+    svr.set_read_timeout(300, 0);
+    svr.set_write_timeout(60, 0);
 
     svr.Get("/nodes", [](const Request&, Response& res) {
         json out = json::array();
         std::lock_guard<std::mutex> lock(nodes_mutex);
         for (auto const& [key, info] : cluster_nodes) {
-            json n;
-            n["id"] = key;
-            n["load"] = info.load;
-            out.push_back(n);
+            out.push_back(serialize_node(key, info));
         }
         res.set_content(out.dump(), "application/json");
     });
 
+    svr.Get("/rpc_endpoints", [](const Request&, Response& res) {
+        json out = json::array();
+        std::lock_guard<std::mutex> lock(nodes_mutex);
+        for (auto const& [key, info] : cluster_nodes) {
+            json ep;
+            ep["node_id"] = key;
+            ep["endpoint"] = "rpc://" + info.address + ":" + std::to_string(info.rpc_port);
+            out.push_back(ep);
+        }
+        res.set_content(out.dump(), "application/json");
+    });
+
+    svr.Get("/cluster_memory", [](const Request&, Response& res) {
+        std::lock_guard<std::mutex> lock(nodes_mutex);
+        double total = 0, available = 0;
+        int node_count = 0;
+        for (auto const& [key, info] : cluster_nodes) {
+            total += info.memory_total_gb;
+            available += info.memory_avail_gb;
+            node_count++;
+        }
+        json out;
+        out["node_count"] = node_count;
+        out["total_memory_gb"] = total;
+        out["available_memory_gb"] = available;
+        out["used_memory_gb"] = total - available;
+        res.set_content(out.dump(), "application/json");
+    });
+
+    svr.Post("/launch", [](const Request& req, Response& res) {
+        auto body = json::parse(req.body);
+        std::string model_path = body.value("model", "");
+        double model_size_gb = body.value("model_size_gb", 0.0);
+
+        if (model_path.empty()) {
+            res.status = 400;
+            res.set_content("{\"error\": \"model path required\"}", "application/json");
+            return;
+        }
+
+        std::vector<std::pair<std::string, NodeInfo>> selected;
+        if (model_size_gb > 0) {
+            selected = select_nodes_for_model(model_size_gb);
+            if (selected.empty()) {
+                double total_avail = 0;
+                {
+                    std::lock_guard<std::mutex> lock(nodes_mutex);
+                    for (auto const& [k, v] : cluster_nodes)
+                        total_avail += v.memory_avail_gb;
+                }
+                json err;
+                err["error"] = "Insufficient cluster memory";
+                err["model_size_gb"] = model_size_gb;
+                err["available_cluster_memory_gb"] = total_avail;
+                res.status = 503;
+                res.set_content(err.dump(), "application/json");
+                return;
+            }
+        } else {
+            std::lock_guard<std::mutex> lock(nodes_mutex);
+            for (auto const& [key, info] : cluster_nodes)
+                selected.push_back({key, info});
+        }
+
+        json result;
+        result["model"] = model_path;
+        result["num_nodes"] = (int)selected.size();
+
+        // Build RPC comma-separated URLs for --rpc flag
+        std::stringstream rpc_ss;
+        json rpc_list = json::array();
+        json nodes_list = json::array();
+
+        for (size_t i = 0; i < selected.size(); i++) {
+            auto const& [key, info] = selected[i];
+            if (i > 0) rpc_ss << ",";
+            rpc_ss << info.address << ":" << info.rpc_port;
+
+            json ep;
+            ep["node_id"] = key;
+            ep["rpc_endpoint"] = "rpc://" + info.address + ":" + std::to_string(info.rpc_port);
+            rpc_list.push_back(ep);
+            nodes_list.push_back(serialize_node(key, info));
+        }
+
+        result["rpc_endpoints"] = rpc_list;
+        result["nodes"] = nodes_list;
+        result["rpc_urls"] = rpc_ss.str();
+
+        // Generate the full llama-server command
+        std::stringstream cmd;
+        cmd << "/opt/aidos/llama.cpp/llama-server";
+        cmd << " --model " << model_path;
+        cmd << " --port 8080";
+        cmd << " --host 0.0.0.0";
+        cmd << " --rpc rpc://" << rpc_ss.str();
+        cmd << " --no-mmap";
+        cmd << " -ngl 99";
+        result["command"] = cmd.str();
+
+        // Also generate a simpler equivalent for /opt/aidos/ollama compatibility
+        std::stringstream ollama_cmd;
+        ollama_cmd << "OLLAMA_RPC=\"rpc://" << rpc_ss.str() << "\"";
+        ollama_cmd << " /opt/aidos/ollama/bin/ollama run " << model_path;
+        result["ollama_command"] = ollama_cmd.str();
+
+        res.set_content(result.dump(), "application/json");
+    });
+
     svr.Post("/distribute", [](const Request& req, Response& res) {
         auto body = json::parse(req.body);
-        
-        std::string target_node;
+        std::string prompt = body.value("prompt", "");
+        double model_size_gb = body.value("model_size_gb", 0.0);
+
         {
             std::lock_guard<std::mutex> lock(nodes_mutex);
             if (cluster_nodes.empty()) {
@@ -111,23 +309,87 @@ int main() {
                 res.set_content("{\"error\": \"No nodes available\"}", "application/json");
                 return;
             }
-            // Simple load balancing: pick the first available
-            target_node = cluster_nodes.begin()->first;
         }
 
-        std::cout << "Distributing task to: " << target_node << std::endl;
-        Client cli(target_node);
-        auto node_res = cli.Post("/compute", body.dump(), "application/json");
-        
+        if (model_size_gb > 0) {
+            auto selected = select_nodes_for_model(model_size_gb);
+            if (selected.empty()) {
+                double total_avail = 0;
+                {
+                    std::lock_guard<std::mutex> lock(nodes_mutex);
+                    for (auto const& [k, v] : cluster_nodes)
+                        total_avail += v.memory_avail_gb;
+                }
+                json err;
+                err["error"] = "Insufficient cluster memory";
+                err["model_size_gb"] = model_size_gb;
+                err["available_cluster_memory_gb"] = total_avail;
+                res.status = 503;
+                res.set_content(err.dump(), "application/json");
+                return;
+            }
+
+            json result;
+            result["strategy"] = "tensor_split";
+            result["num_nodes"] = (int)selected.size();
+            json rpc_list = json::array();
+            for (auto const& [key, info] : selected) {
+                json ep;
+                ep["node_id"] = key;
+                ep["rpc_endpoint"] = "rpc://" + info.address + ":" + std::to_string(info.rpc_port);
+                rpc_list.push_back(ep);
+            }
+            result["rpc_endpoints"] = rpc_list;
+
+            std::stringstream rpc_ss;
+            for (size_t i = 0; i < selected.size(); i++) {
+                if (i > 0) rpc_ss << ",";
+                rpc_ss << selected[i].first;
+            }
+            result["rpc_urls"] = rpc_ss.str() + ":50052";
+
+            Client* mkt = get_marketplace_client();
+            for (auto const& [key, info] : selected) {
+                try {
+                    json report;
+                    report["node_id"] = key;
+                    report["units"] = model_size_gb;
+                    report["load"] = info.load;
+                    mkt->Post("/report_work", report.dump(), "application/json");
+                } catch (...) {}
+            }
+
+            res.set_content(result.dump(), "application/json");
+            return;
+        }
+
+        std::string target_node;
+        double best_mem = -1;
+        {
+            std::lock_guard<std::mutex> lock(nodes_mutex);
+            for (auto const& [key, info] : cluster_nodes) {
+                if (info.memory_avail_gb > best_mem) {
+                    best_mem = info.memory_avail_gb;
+                    target_node = key;
+                }
+            }
+        }
+
+        std::cout << "Distributing task to: " << target_node
+                  << " (avail mem: " << best_mem << " GB)" << std::endl;
+
+        Client* cli = get_node_client(target_node, 8081);
+        json compute_body;
+        compute_body["prompt"] = prompt;
+        auto node_res = cli->Post("/compute", compute_body.dump(), "application/json");
+
         if (node_res) {
-            // Report work to marketplace (Phase 9)
+            Client* mkt = get_marketplace_client();
             json report;
             report["node_id"] = target_node;
-            report["units"] = 1.0; // 1 credit per task
-            report["load"] = 0.8;  // Mock load
-            
-            Client marketplace("localhost:8083");
-            marketplace.Post("/report_work", report.dump(), "application/json");
+            report["units"] = 1.0;
+            report["load"] = 0.8;
+            mkt->Post("/report_work", report.dump(), "application/json");
 
             res.set_content(node_res->body, "application/json");
         } else {

@@ -5,6 +5,7 @@
 #include <vector>
 #include <sstream>
 #include <iomanip>
+#include <netinet/tcp.h>
 #include "../llama.cpp_src/vendor/cpp-httplib/httplib.h"
 #include "../llama.cpp_src/vendor/nlohmann/json.hpp"
 
@@ -28,26 +29,29 @@ std::string generate_dashboard_html() {
     ss << "table{width:100%; border-collapse:collapse;} th,td{border:1px solid #333; padding:10px; text-align:left;} ";
     ss << "th{background:#1a1a1a;} .total{font-size:2em; color:#00ff88;}</style></head><body>";
     ss << "<h1>AIDOS AI Marketplace</h1>";
-    
+
     double total_units = 0;
     for (auto const& [id, acc] : ledger) total_units += acc.total_compute_units;
-    
+
     ss << "<div class='total'>Total Cluster Power: " << std::fixed << std::setprecision(2) << total_units << " AIDOS Credits</div>";
     ss << "<h3>Active Contributors</h3>";
     ss << "<table><tr><th>Node ID</th><th>Total Credits Earned</th><th>Real-Time Load</th></tr>";
-    
+
     for (auto const& [id, acc] : ledger) {
         ss << "<tr><td>" << id << "</td><td>" << acc.total_compute_units << "</td><td>" << acc.last_load * 100 << "%</td></tr>";
     }
-    
+
     ss << "</table></body></html>";
     return ss.str();
 }
 
 int main() {
     Server svr;
+    svr.set_tcp_nodelay(true);
+    svr.set_keep_alive_max_count(100);
+    svr.set_read_timeout(300, 0);
+    svr.set_write_timeout(60, 0);
 
-    // API: Register work completion
     svr.Post("/report_work", [](const Request& req, Response& res) {
         auto body = json::parse(req.body);
         std::string node_id = body["node_id"];
@@ -63,7 +67,6 @@ int main() {
         res.set_content("{\"status\": \"ok\"}", "application/json");
     });
 
-    // API: Get leaderboard
     svr.Get("/ledger", [](const Request&, Response& res) {
         json out = json::array();
         std::lock_guard<std::mutex> lock(ledger_mutex);
@@ -76,7 +79,6 @@ int main() {
         res.set_content(out.dump(), "application/json");
     });
 
-    // Web Dashboard
     svr.Get("/", [](const Request&, Response& res) {
         res.set_content(generate_dashboard_html(), "text/html");
     });
