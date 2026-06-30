@@ -1,39 +1,98 @@
 #!/bin/sh
 
-# Load input modules for PS/2 keyboard/mouse support
+# Guard: only run once
+LOCKFILE=/var/lock/aidos-boot.lock
+if [ -f "$LOCKFILE" ]; then
+    exit 0
+fi
+touch "$LOCKFILE"
+
+# Fix /root ownership (build artifact may set wrong owner)
+chown root:root /root 2>/dev/null || true
+
+# Bring up network interfaces (lo + eth0 via DHCP or static fallback)
+ip link set lo up
+ip link set eth0 up 2>/dev/null || true
+if ! udhcpc -i eth0 -n -q 2>/dev/null; then
+    ifconfig eth0 10.0.2.15 netmask 255.255.255.0 up 2>/dev/null
+    route add default gw 10.0.2.2 2>/dev/null || true
+fi
+
+# Suppress kernel messages on console (segfault dumps flood the screen)
+dmesg -n 1
+
+# Load input modules for keyboard/mouse support (USB HID + PS/2 + virtio)
+modprobe usbcore 2>/dev/null || true
+modprobe xhci_hcd 2>/dev/null || true
+modprobe ehci_hcd 2>/dev/null || true
+modprobe ohci_hcd 2>/dev/null || true
+modprobe hid 2>/dev/null || true
+modprobe usbhid 2>/dev/null || true
+modprobe hid_generic 2>/dev/null || true
 modprobe psmouse 2>/dev/null || true
 modprobe mousedev 2>/dev/null || true
 modprobe evdev 2>/dev/null || true
 modprobe virtio_input 2>/dev/null || true
 modprobe serio 2>/dev/null || true
 
+# Create log directory
+mkdir -p /var/log/aidos
+chown aidos:aidos /var/log/aidos 2>/dev/null || true
+
 # glibc runtime path for binaries that need it
 GLIBC_LD="/opt/aidos/glibc/lib/ld-linux-x86-64.so.2"
 GLIBC_LIB="/opt/aidos/glibc/lib:/opt/aidos/ollama/lib"
 
 # Start AIDOS services (musl static, no glibc needed)
-/opt/aidos/marketplace/marketplace &
-/opt/aidos/node_server/node_server &
-/opt/aidos/controller/controller &
-/opt/aidos/api_server/api_server &
+/opt/aidos/marketplace/marketplace >/var/log/aidos/marketplace.log 2>&1 &
+/opt/aidos/node_server/node_server >/var/log/aidos/node_server.log 2>&1 &
+/opt/aidos/controller/controller >/var/log/aidos/controller.log 2>&1 &
+/opt/aidos/api_server/api_server >/var/log/aidos/api_server.log 2>&1 &
 
-# Start Ollama server (glibc binary)
-$GLIBC_LD --library-path $GLIBC_LIB /opt/aidos/ollama/bin/ollama serve &
+# Start Ollama server (glibc binary) — redirect output to avoid console spam on crash
+$GLIBC_LD --library-path $GLIBC_LIB /opt/aidos/ollama/bin/ollama serve >/var/log/aidos/ollama.log 2>&1 &
 
 # Start llama.cpp RPC server for tensor splitting (glibc binary)
-# Retry loop: glibc may crash during early boot (timing issue with __strlen_evex)
-for i in 1 2 3; do
-    sleep $((i * 2))
-    $GLIBC_LD --library-path $GLIBC_LIB /opt/aidos/llama.cpp/rpc-server --host 0.0.0.0 -p 50052 &
-    RPCPID=$!
-    sleep 1
-    if kill -0 $RPCPID 2>/dev/null; then
+# Single attempt with output redirected — if it crashes, log it silently
+sleep 3
+$GLIBC_LD --library-path $GLIBC_LIB /opt/aidos/llama.cpp/rpc-server --host 0.0.0.0 -p 50052 >/var/log/aidos/rpc-server.log 2>&1 &
+RPCPID=$!
+sleep 1
+if ! kill -0 $RPCPID 2>/dev/null; then
+    echo "WARNING: RPC server failed to start (check /var/log/aidos/rpc-server.log)" >/var/log/aidos/rpc-server.log
+fi
+
+echo "Starting XFCE desktop via startx..." >>/var/log/aidos/desktop.log
+
+# Clean any stale lock files from previous sessions
+rm -f /tmp/.tX0-lock /tmp/.X0-lock 2>/dev/null || true
+
+# Start Xorg directly on VT7 (as root, for /dev/dri/card0 access)
+/usr/libexec/Xorg :0 vt7 -keeptty -novtswitch -auth /dev/null \
+    >/var/log/aidos/xorg.log 2>&1 &
+X_PID=$!
+
+# Wait for X server to be ready
+for i in 1 2 3 4 5 6 7 8 9 10; do
+    if [ -e /tmp/.X11-unix/X0 ]; then
         break
     fi
-    wait $RPCPID 2>/dev/null
+    sleep 1
 done
 
-echo "Starting desktop environment..."
-su - aidos -c '/opt/aidos/scripts/start-desktop.sh' &
+if [ -e /tmp/.X11-unix/X0 ]; then
+    echo "Xorg started (PID: $X_PID)" >>/var/log/aidos/desktop.log
+    # Start xfce session (as root — session bus can create sockets)
+    export ICEAUTHORITY=/root/.ICEauthority
+    DISPLAY=:0 startxfce4 >/var/log/aidos/xfce.log 2>&1 &
+    # Start x11vnc for remote desktop on port 5901
+    x11vnc -display :0 -forever -nopw -rfbport 5901 -noxdamage -quiet \
+        >>/var/log/aidos/x11vnc.log 2>&1 &
+    echo "x11vnc and xfce started" >>/var/log/aidos/desktop.log
+else
+    echo "WARNING: X server did not start" >>/var/log/aidos/desktop.log
+    # Log Xorg startup issue
+    head -20 /var/log/aidos/xorg.log >>/var/log/aidos/desktop.log 2>/dev/null || true
+fi
 
-echo "AIDOS services started."
+echo "AIDOS services started. Logs in /var/log/aidos/"

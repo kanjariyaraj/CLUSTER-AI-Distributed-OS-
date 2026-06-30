@@ -67,7 +67,12 @@ fi
 
 # Only include modules needed to detect CD-ROM, mount ISO 9660, and drive display
 # (no loop module needed - virt kernel lacks it)
-for mod in squashfs isofs sr_mod cdrom ata_generic sd_mod virtio_blk virtio_scsi e1000 virtio_net virtio_dma_buf virtio-gpu; do
+for mod in squashfs isofs sr_mod cdrom ata_generic sd_mod \
+           virtio_blk virtio_scsi e1000 virtio_net \
+           drm drm_kms_helper drm_shmem_helper drm_ttm_helper drm_vram_helper ttm \
+           syscopyarea sysfillrect sysimgblt fb fb_io_fops fb_sys_fops fbdev \
+           virtio_dma_buf virtio-gpu bochs simpledrm \
+           usbcore usbhid hid-generic hid xhci-hcd xhci-pci ehci-hcd ohci-hcd evdev virtio_input; do
     src=$(find "$MOD_SRC" -name "${mod}.ko.gz" -o -name "${mod}.ko" | head -1)
     if [ -n "$src" ]; then
         dest="$MODS_DIR/$(echo $src | sed "s|$MOD_SRC/||")"
@@ -97,8 +102,8 @@ mkdir -p "$ROOTFS_DIR"
 tar -xzf "$ROOTFS_TAR" -C "$ROOTFS_DIR"
 
 # Copy all kernel modules into rootfs (for the running system)
-mkdir -p "$ROOTFS_DIR/lib/modules"
-cp -r "$MOD_SRC" "$ROOTFS_DIR/lib/modules/" 2>/dev/null || true
+mkdir -p "$ROOTFS_DIR/lib/modules/$KERNEL_VER"
+cp -r "$MOD_SRC/." "$ROOTFS_DIR/lib/modules/$KERNEL_VER/" 2>/dev/null || true
 
 # Check if extlinux.conf exists (from fs-skel) and verify the extlinux path
 # Alpine uses extlinux on disk installs, not needed for ISO boot
@@ -155,6 +160,20 @@ echo "AIDOS: Loading kernel modules..."
 /bin/busybox modprobe virtio_net 2>/dev/null || true
 /bin/busybox modprobe virtio_dma_buf 2>/dev/null || true
 /bin/busybox modprobe virtio-gpu 2>/dev/null || true
+/bin/busybox modprobe bochs 2>/dev/null || true
+/bin/busybox modprobe simpledrm 2>/dev/null || true
+
+echo "AIDOS: Loading input device modules..."
+/bin/busybox modprobe usbcore 2>/dev/null || true
+/bin/busybox modprobe xhci-hcd 2>/dev/null || true
+/bin/busybox modprobe xhci-pci 2>/dev/null || true
+/bin/busybox modprobe ehci-hcd 2>/dev/null || true
+/bin/busybox modprobe ohci-hcd 2>/dev/null || true
+/bin/busybox modprobe hid 2>/dev/null || true
+/bin/busybox modprobe usbhid 2>/dev/null || true
+/bin/busybox modprobe hid_generic 2>/dev/null || true
+/bin/busybox modprobe evdev 2>/dev/null || true
+/bin/busybox modprobe virtio_input 2>/dev/null || true
 
 /bin/busybox sleep 3
 
@@ -245,14 +264,14 @@ rm -rf "$INITRAMFS_DIR"
 echo "  Initramfs created: $(du -h "$INITRAMFS_FILE" | cut -f1)"
 
 echo "[5/5] Staging ISO and generating image..."
-# Extract rootfs directly into ISO directory
-# Files at ISO root will be visible when mounted, allowing direct copy to tmpfs
-for item in "$ROOTFS_DIR"/*; do
-    name=$(basename "$item")
-    [ "$name" = "boot" ] && continue
-    cp -r "$item" "$ISO_DIR/" 2>/dev/null || true
-done
-cp -r "$ROOTFS_DIR/boot" "$ISO_DIR/rootfs-boot" 2>/dev/null || true
+# Re-extract rootfs tar into ISO dir using sudo to preserve setuid/ownership
+echo "Shyam@123" | sudo -S tar xzf "$ROOTFS_TAR" -C "$ISO_DIR/" 2>/dev/null
+# Re-inject kernel modules into their versioned directory
+echo "Shyam@123" | sudo -S mkdir -p "$ISO_DIR/lib/modules/$KERNEL_VER"
+echo "Shyam@123" | sudo -S cp -r "$MOD_SRC/." "$ISO_DIR/lib/modules/$KERNEL_VER/" 2>/dev/null
+# Fix permissions so xorriso can read all files (but keep setuid bits)
+echo "Shyam@123" | sudo -S find "$ISO_DIR" -type d -exec chmod 755 {} \; 2>/dev/null
+echo "Shyam@123" | sudo -S find "$ISO_DIR" -type f -exec chmod a+r,u+w {} \; 2>/dev/null
 
 echo "  Rootfs staged on ISO"
 
@@ -265,7 +284,10 @@ if [ -n "$ISOLINUX_BIN" ] && [ -n "$LDLINUX_C32" ]; then
 fi
 
 cat <<EOF > "$ISO_DIR/isolinux/isolinux.cfg"
+PROMPT 0
+TIMEOUT 10
 DEFAULT aidos
+ONTIMEOUT aidos
 LABEL aidos
   KERNEL /boot/vmlinuz-${KERNEL_TYPE}
   APPEND initrd=/boot/initramfs-aidos.gz console=tty0 console=ttyS0,115200

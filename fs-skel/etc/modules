@@ -1,3 +1,16 @@
 # AIDOS kernel modules to load at boot
 e1000
 virtio_net
+# QEMU VNC/display support
+virtio_dma_buf
+virtio-gpu
+bochs
+# Input device support (keyboard, mouse, tablet)
+usbhid
+hid_generic
+hid
+evdev
+virtio_input
+xhci_hcd
+ehci_hcd
+ohci_hcd

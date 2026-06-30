@@ -7,8 +7,10 @@ ALPINE_MIRROR=${ALPINE_MIRROR:-http://dl-cdn.alpinelinux.org/alpine}
 DEST_DIR="out/rootfs"
 DEST_TAR="out/rootfs.tar.gz"
 # Minimal XFCE desktop - individual packages, NO thunar/tumbler (avoids webkit2gtk, ffmpeg bloat)
-XFCE_PKGS="xorg-server xfce4-session xfwm4 xfce4-panel xfdesktop xfce4-settings xfce4-power-manager xfce4-terminal lightdm lightdm-gtk-greeter dbus dbus-openrc dbus-x11 polkit elogind desktop-file-utils shared-mime-info adwaita-icon-theme ttf-dejavu x11vnc xinit xf86-video-qxl"
-PACKAGES="curl bash openrc alpine-conf gcompat libstdc++ libgcc ${XFCE_PKGS}"
+XFCE_PKGS="xorg-server xfce4-session xfwm4 xfce4-panel xfdesktop xfce4-settings xfce4-power-manager xfce4-terminal lightdm lightdm-gtk-greeter dbus dbus-openrc dbus-x11 polkit elogind desktop-file-utils shared-mime-info adwaita-icon-theme ttf-dejavu x11vnc xinit xf86-video-qxl xf86-video-vesa xf86-video-fbdev mesa-dri-gallium xdotool"
+# mpv for boot animation playback on framebuffer (DRM/KMS)
+BOOT_PKGS="mpv"
+PACKAGES="curl bash openrc alpine-conf gcompat libstdc++ libgcc ${XFCE_PKGS} ${BOOT_PKGS}"
 
 # Create output directory
 mkdir -p out
@@ -54,9 +56,9 @@ rc-update add procfs sysinit
 rc-update add devfs sysinit
 rc-update add mdev boot
 rc-update add dbus default
-rc-update add lightdm default
 rc-update add elogind default
 rc-update add local default
+rc-update add boot-animation sysinit
 
 echo "Setting Xorg setuid root for non-root display access..."
 chown root:root /usr/libexec/Xorg 2>/dev/null
@@ -67,6 +69,10 @@ chown root:root /usr/bin/Xorg 2>/dev/null || true
 chmod u+s /usr/bin/Xorg 2>/dev/null || echo "WARNING: Could not set Xorg setuid"
 # Verify
 ls -la /usr/libexec/Xorg /usr/lib/xorg/Xorg /usr/bin/Xorg 2>/dev/null || true
+
+echo "Xorg will autodetect the modesetting driver (no /etc/X11/xorg.conf needed)."
+echo "The modesetting driver works with virtio-gpu DRM/KMS via /dev/dri/card0."
+echo "For fbdev fallback, install xf86-video-fbdev and create xorg.conf."
 
 echo "Setting up lightdm auto-login for aidos user..."
 mkdir -p /etc/lightdm
@@ -106,7 +112,7 @@ AUTOSTART
 echo "Purging unnecessary bloat packages to keep ISO lean..."
 apk del --purge tumbler thunar gnome-keyring webkit2gtk 2>/dev/null || true
 apk del --purge ffmpeg gst-plugins-bad gst-plugins-base gstreamer 2>/dev/null || true
-apk del --purge mesa-dri-gallium mesa-va-gallium mesa-vulkan-ati mesa-vulkan-intel 2>/dev/null || true
+# apk del --purge mesa-dri-gallium mesa-va-gallium mesa-vulkan-ati mesa-vulkan-intel 2>/dev/null || true
 apk del --orphans 2>/dev/null || true
 SCRIPT
 

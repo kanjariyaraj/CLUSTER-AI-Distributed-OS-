@@ -1,0 +1,45 @@
+#!/sbin/openrc-run
+
+description="AIDOS Boot Animation"
+ANIMATION="/opt/aidos/boot-animation.mp4"
+LOGFILE="/var/log/aidos/boot-animation.log"
+
+depend() {
+    after devfs
+    before lightdm local
+}
+
+start() {
+    ebegin "Starting boot animation"
+    mkdir -p /var/log/aidos
+
+    # Play briefly and exit so Xorg/LightDM can take DRM ownership cleanly.
+    if command -v mpv >/dev/null 2>&1; then
+        timeout 8 /usr/bin/mpv \
+            --vo=drm --drm-connector=1 \
+            --no-audio \
+            --no-osd-bar \
+            --no-config \
+            --really-quiet \
+            "$ANIMATION" \
+            >> "$LOGFILE" 2>&1
+        rc=$?
+    elif command -v ffmpeg >/dev/null 2>&1; then
+        timeout 8 ffmpeg -re -i "$ANIMATION" -vf scale=1024:768 \
+            -vcodec rawvideo -pix_fmt bgr32 -f fbdev /dev/fb0 >> "$LOGFILE" 2>&1
+        rc=$?
+    else
+        eend 1 "No suitable video player found (mpv or ffmpeg required)"
+        return 1
+    fi
+
+    [ "$rc" = "124" ] && rc=0
+    eend "$rc"
+}
+
+stop() {
+    ebegin "Stopping boot animation"
+    pkill -f "mpv.*boot-animation" 2>/dev/null || true
+    pkill -f "ffmpeg.*boot-animation" 2>/dev/null || true
+    eend $?
+}
